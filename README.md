@@ -22,7 +22,7 @@ The implementation is self-contained in file ([mayo.py](mauo.py)). You will need
 
 The known answer testbench ([kat_test.py](kat_test.py)) can be executed via `python3 kat_test.py` and checked against the provided KAT checksums.
 
-The [kat](kat) directory contains various test vectors extracted from the NIST submission package. The `*.rsp1` files just contain the first entry of each response file. Due to the large size of keys in the KAT files, sha256 hashes are provided for 1, 10, and 100 entries in files [kat1.txt](kat/kat1.txt), [kat10.txt](kat/kat10.txt), and [kat100.txt](kat/kat100.txt), respectively.
+The [kat](kat) directory contains various test vectors extracted from the NIST submission package. The `*.rsp.1` files just contain the first entry of each response file. Due to the large size of keys in the KAT files, sha256 hashes are provided for 1, 10, and 100 entries in files [kat1.txt](kat/kat1.txt), [kat10.txt](kat/kat10.txt), and [kat100.txt](kat/kat100.txt), respectively.
 
 The KAT tester computes sha256 hashes of KAT output in the same format as the NIST .rsp file. By default we compute first 10 vectors, but you may modify the `katnum` variable in [kat_test.py](kat_test.py) to produce hashes of more vectors.
 
