@@ -151,8 +151,11 @@ class Mayo:
             bs += x.to_bytes(m // 8, byteorder='little')
         return bs
 
-    def bs_shift4(self, a, l):
+    def bs_lsh(self, a, l):
         return  [ a[0] << l, a[1] << l, a[2] << l, a[3] << l ]
+
+    def bs_rsh(self, a, r):
+        return  [ a[0] >> r, a[1] >> r, a[2] >> r, a[3] >> r ]
 
     #   === Key Generation
 
@@ -193,20 +196,18 @@ class Mayo:
                 p2m[r][c] = p2v[p2i]
                 p2i += 1
 
-        #   compute P1*O + P2
-        p1o_p2  =   p2m             # ovewrites p2m
-        for r in range(self.v):
-            for c in range(r, self.v):
-                for j in range(self.o):
-                    self.bs_mul_add( p1o_p2[r][j], p1m[r][c], om[c][j] )
-
-        #   compute P3 = O^t * (P1*O + P2)
+        #   Compute P3
         p3m =   [ [ [0,0,0,0] for _ in range(self.o) ]
                                 for _ in range(self.o) ]
-        for r in range(self.o):
-            for c in range(self.v):
-                for j in range(self.o):
-                    self.bs_mul_add( p3m[r][j], p1o_p2[c][j], om[c][r] )
+        for r in range(self.v):
+            for c in range(self.o):
+                #   compute P1*O + P2
+                t = p2m[r][c]
+                for i in range(r, self.v):
+                    self.bs_mul_add( t, p1m[r][i], om[i][c] )
+                #   compute P3 = O^t * (P1*O + P2)
+                for i in range(self.o):
+                    self.bs_mul_add( p3m[i][c], t, om[r][i] )
 
         #   fold P3 into upper triangular & serialize
         cpk = seed_pk
@@ -236,9 +237,7 @@ class Mayo:
                 c += 1
                 continue
             if i != r:
-                for j in range(c, w):
-                    bm[r][j] ^= bm[i][j]
-                #(bm[r], bm[i]) = (bm[i], bm[r])
+                (bm[r], bm[i]) = (bm[i], bm[r])
             x = self.f_inv(bm[r][c])
             for j in range(c, w):
                 bm[r][j] = self.gf16_mul(bm[r][j], x)
@@ -414,7 +413,6 @@ class Mayo:
             for i in range(yd - self.m):
                 for j in range(len(self.tail_f)):
                     y[i + j] ^= self.f_mul(y[i + self.m], self.tail_f[j])
-                #y[i + m] = 0
             y = y[:self.m]
 
             for i in range(yd - self.m):
@@ -438,7 +436,6 @@ class Mayo:
                 s += [t]
             s += x[i*self.o : (i+1)*self.o]
 
-        #   dbg_vec(s, 's')
         sig = self.encode_vec(s) + salt
         return sig
 
@@ -487,9 +484,6 @@ class Mayo:
                 l += 1
 
         #   S * P * S = S * (P * S)
-        sps     =   [ [ [0,0,0,0] for _ in range(self.k) ]
-                                    for _ in range(self.k) ]
-
         z = [0,0,0,0]
         for r in range(self.n):
             for c in range(self.k):
@@ -497,18 +491,19 @@ class Mayo:
                 t = [0,0,0,0]
                 for j in range(r, self.n):
                     self.bs_mul_add( t, pm[r][j], s[c][j] )
+
                 #   S * P * S = S * (P * S)
                 for i in range(self.k):
-                    self.bs_mul_add( z, self.bs_shift4(t, ls[c][i]), s[i][r] )
-
-        y = self.bs_nibbles( z, self.m + (self.k * (self.k+1) // 2) )
+                    self.bs_mul_add( z, self.bs_lsh(t, ls[c][i]), s[i][r] )
 
         #   reduce mod f(x)
-        for i in range(l):
-            for j in range(len(self.tail_f)):
-                y[i + j] ^= self.f_mul(y[i + self.m], self.tail_f[j])
+        t = self.bs_rsh(z, self.m)
+        for j in range(len(self.tail_f)):
+            self.bs_mul_add( z, self.bs_lsh(t, j), self.tail_f[j])
 
-        return bytearray( y[0 : self.m] )
+        y = self.bs_nibbles( z, self.m)
+
+        return bytearray( y )
 
 
     def verify(self, pk, msg, sig):
